@@ -22,10 +22,11 @@
  * THE SOFTWARE.
  */
 import 'package:flutter/material.dart';
-import 'container_manager.dart';
+
 import '../flutter_boost.dart';
-import 'boost_page_route.dart';
 import '../support/logger.dart';
+import 'boost_page_route.dart';
+import 'container_manager.dart';
 
 enum ContainerLifeCycle {
   Init,
@@ -37,28 +38,31 @@ enum ContainerLifeCycle {
   Foreground
 }
 
-typedef void BoostContainerLifeCycleObserver(
-    ContainerLifeCycle state, BoostContainerSettings settings);
+typedef BoostContainerLifeCycleObserver = void Function(
+    ContainerLifeCycle state,
+    BoostContainerSettings settings,
+    );
 
 class BoostContainer extends Navigator {
-  final BoostContainerSettings settings;
+  const BoostContainer({
+    GlobalKey<BoostContainerState> key,
+    this.settings = const BoostContainerSettings(),
+    String initialRoute,
+    RouteFactory onGenerateRoute,
+    RouteFactory onUnknownRoute,
+    List<NavigatorObserver> observers,
+  }) : super(
+    key: key,
+    initialRoute: initialRoute,
+    onGenerateRoute: onGenerateRoute,
+    onUnknownRoute: onUnknownRoute,
+    observers: observers,
+  );
 
-  const BoostContainer(
-      {GlobalKey<BoostContainerState> key,
-      this.settings = const BoostContainerSettings(),
-      String initialRoute,
-      RouteFactory onGenerateRoute,
-      RouteFactory onUnknownRoute,
-      List<NavigatorObserver> observers})
-      : super(
-            key: key,
-            initialRoute: initialRoute,
-            onGenerateRoute: onGenerateRoute,
-            onUnknownRoute: onUnknownRoute,
-            observers: observers);
-
-  factory BoostContainer.copy(Navigator navigator,
-          [BoostContainerSettings settings = const BoostContainerSettings()]) =>
+  factory BoostContainer.copy(
+      Navigator navigator, [
+        BoostContainerSettings settings = const BoostContainerSettings(),
+      ]) =>
       BoostContainer(
         key: GlobalKey<BoostContainerState>(),
         settings: settings,
@@ -69,28 +73,37 @@ class BoostContainer extends Navigator {
       );
 
   factory BoostContainer.obtain(
-          Navigator navigator, BoostContainerSettings settings) =>
+      Navigator navigator,
+      BoostContainerSettings settings,
+      ) =>
       BoostContainer(
-          key: GlobalKey<BoostContainerState>(),
-          settings: settings,
-          onGenerateRoute: (RouteSettings routeSettings) {
-            if (routeSettings.name == '/') {
-              return BoostPageRoute<dynamic>(
-                  pageName: settings.name,
-                  params: settings.params,
-                  uniqueId: settings.uniqueId,
-                  animated: false,
-                  settings: routeSettings,
-                  builder: settings.builder);
-            } else {
-              return navigator.onGenerateRoute(routeSettings);
-            }
-          },
-          observers: <NavigatorObserver>[
-            ContainerNavigatorObserver.bindContainerManager(),
-            HeroController(),
-          ],
-          onUnknownRoute: navigator.onUnknownRoute);
+        key: GlobalKey<BoostContainerState>(),
+        settings: settings,
+        onGenerateRoute: (RouteSettings routeSettings) {
+          if (routeSettings.name == '/') {
+            return BoostPageRoute<dynamic>(
+              pageName: settings.name,
+              params: settings.params,
+              uniqueId: settings.uniqueId,
+              animated: false,
+              settings: RouteSettings(
+                name: settings.name,
+                arguments: routeSettings.arguments,
+              ),
+              builder: settings.builder,
+            );
+          } else {
+            return navigator.onGenerateRoute(routeSettings);
+          }
+        },
+        observers: <NavigatorObserver>[
+          ContainerNavigatorObserver.bindContainerManager(),
+          HeroController(),
+        ],
+        onUnknownRoute: navigator.onUnknownRoute,
+      );
+
+  final BoostContainerSettings settings;
 
   @override
   BoostContainerState createState() => BoostContainerState();
@@ -100,18 +113,20 @@ class BoostContainer extends Navigator {
 
   static BoostContainerState tryOf(BuildContext context) {
     final BoostContainerState container =
-        context.findAncestorStateOfType<BoostContainerState>();
+    context.findAncestorStateOfType<BoostContainerState>();
     return container;
   }
 
   static BoostContainerState of(BuildContext context) {
     final BoostContainerState container =
-        context.findAncestorStateOfType<BoostContainerState>();
+    context.findAncestorStateOfType<BoostContainerState>();
     assert(container != null, 'not in flutter boost');
     return container;
   }
 
   String desc() => '{uniqueId=${settings.uniqueId},name=${settings.name}}';
+
+  RouteListFactory get initialRoutes => super.onGenerateInitialRoutes;
 }
 
 class BoostContainerState extends NavigatorState {
@@ -121,7 +136,7 @@ class BoostContainerState extends NavigatorState {
 
   String get name => widget.settings.name;
 
-  Map get params => widget.settings.params;
+  Map<String, dynamic> get params => widget.settings.params;
 
   BoostContainerSettings get settings => widget.settings;
 
@@ -138,7 +153,7 @@ class BoostContainerState extends NavigatorState {
 
   ContainerNavigatorObserver findContainerNavigatorObserver(
       Navigator navigator) {
-    for (NavigatorObserver observer in navigator.observers) {
+    for (final NavigatorObserver observer in navigator.observers) {
       if (observer is ContainerNavigatorObserver) {
         return observer;
       }
@@ -151,11 +166,15 @@ class BoostContainerState extends NavigatorState {
   void initState() {
     super.initState();
     backPressedHandler = () => maybePop();
-  }
-
-  @override
-  void didUpdateWidget(Navigator oldWidget) {
-    super.didUpdateWidget(oldWidget);
+    final String initRoute = widget.initialRoute ?? Navigator.defaultRouteName;
+    if (initRoute != null && routerHistory.isEmpty) {
+      routerHistory.addAll(
+          widget.initialRoutes(
+              this,
+              widget.initialRoute ?? Navigator.defaultRouteName
+          )
+      );
+    }
   }
 
   @override
@@ -172,22 +191,28 @@ class BoostContainerState extends NavigatorState {
 
   @override
   Future<bool> maybePop<T extends Object>([T result]) async {
-    final Route<T> route = routerHistory.last;
+    if(routerHistory.isEmpty) {
+      pop(result);
+      return true;
+    }
+
+    final Route<T> route = routerHistory.last as Route<T>;
+
     final RoutePopDisposition disposition = await route.willPop();
     if (mounted) {
-      switch (disposition) {
-        case RoutePopDisposition.pop:
-          pop(result);
-          return true;
-          break;
-        case RoutePopDisposition.doNotPop:
-          return false;
-          break;
-        case RoutePopDisposition.bubble:
-          pop(result);
-          return true;
-          break;
-      }
+    switch (disposition) {
+    case RoutePopDisposition.pop:
+    pop(result);
+    return true;
+    break;
+    case RoutePopDisposition.doNotPop:
+    return false;
+    break;
+    case RoutePopDisposition.bubble:
+    pop(result);
+    return true;
+    break;
+    }
     }
     return false;
   }
@@ -199,7 +224,7 @@ class BoostContainerState extends NavigatorState {
     }
 
     if (canPop()) {
-         super.pop<T>(result);
+      super.pop<T>(result);
     } else {
       if (T is Map<String, dynamic>) {
         FlutterBoost.singleton
@@ -216,10 +241,10 @@ class BoostContainerState extends NavigatorState {
     Route<T> newRoute;
     if (FlutterBoost.containerManager.prePushRoute != null) {
       newRoute = FlutterBoost.containerManager
-          .prePushRoute(name, uniqueId, params, route);
+          .prePushRoute<T>(name, uniqueId, params, route);
     }
 
-    Future<T> future = super.push<T>(newRoute ?? route);
+    final Future<T> future = super.push<T>(newRoute ?? route);
 
     routerHistory.add(route);
 
@@ -233,25 +258,30 @@ class BoostContainerState extends NavigatorState {
 
   VoidCallback addLifeCycleObserver(BoostContainerLifeCycleObserver observer) {
     return FlutterBoost.singleton.addBoostContainerLifeCycleObserver(
-        (ContainerLifeCycle state, BoostContainerSettings settings) {
-      if (settings.uniqueId == uniqueId) {
-        observer(state, settings);
-      }
-    });
+          (
+          ContainerLifeCycle state,
+          BoostContainerSettings settings,
+          ) {
+        if (settings.uniqueId == uniqueId) {
+          observer(state, settings);
+        }
+      },
+    );
   }
 }
 
 class BoostContainerSettings {
+  const BoostContainerSettings({
+    this.uniqueId = 'default',
+    this.name = 'default',
+    this.params,
+    this.builder,
+  });
+
   final String uniqueId;
   final String name;
-  final Map params;
+  final Map<String, dynamic> params;
   final WidgetBuilder builder;
-
-  const BoostContainerSettings(
-      {this.uniqueId = 'default',
-      this.name = 'default',
-      this.params,
-      this.builder});
 }
 
 class ContainerElement extends StatefulElement {
@@ -259,12 +289,12 @@ class ContainerElement extends StatefulElement {
 }
 
 class ContainerNavigatorObserver extends NavigatorObserver {
-  static final Set<NavigatorObserver> boostObservers = Set<NavigatorObserver>();
-
   ContainerNavigatorObserver();
 
   factory ContainerNavigatorObserver.bindContainerManager() =>
       ContainerNavigatorObserver();
+
+  static final Set<NavigatorObserver> boostObservers = <NavigatorObserver>{};
 
   VoidCallback addBoostNavigatorObserver(NavigatorObserver observer) {
     boostObservers.add(observer);
@@ -278,28 +308,28 @@ class ContainerNavigatorObserver extends NavigatorObserver {
 
   @override
   void didPush(Route<dynamic> route, Route<dynamic> previousRoute) {
-    for (NavigatorObserver observer in boostObservers) {
+    for (final NavigatorObserver observer in boostObservers) {
       observer.didPush(route, previousRoute);
     }
   }
 
   @override
   void didPop(Route<dynamic> route, Route<dynamic> previousRoute) {
-    for (NavigatorObserver observer in boostObservers) {
+    for (final NavigatorObserver observer in boostObservers) {
       observer.didPop(route, previousRoute);
     }
   }
 
   @override
   void didRemove(Route<dynamic> route, Route<dynamic> previousRoute) {
-    for (NavigatorObserver observer in boostObservers) {
+    for (final NavigatorObserver observer in boostObservers) {
       observer.didRemove(route, previousRoute);
     }
   }
 
   @override
   void didReplace({Route<dynamic> newRoute, Route<dynamic> oldRoute}) {
-    for (NavigatorObserver observer in boostObservers) {
+    for (final NavigatorObserver observer in boostObservers) {
       observer.didReplace(newRoute: newRoute, oldRoute: oldRoute);
     }
   }

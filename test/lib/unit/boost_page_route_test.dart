@@ -47,10 +47,10 @@ void main() {
 
   group('Try to get the BoostPageRoute in the ancestor node', () {
     testWidgets(
-        'obtain BoostPageRoute through the `BoostPageRoute.of(context)` method',
+        'obtain BoostPageRoute through the BoostPageRoute.of(context) method',
         (WidgetTester tester) async {
-      dynamic boostPageRoute;
-      dynamic boostPageRouteFindByOfMethod;
+      BoostPageRoute<dynamic> boostPageRoute;
+      BoostPageRoute<dynamic> boostPageRouteFindByOfMethod;
 
       await tester.pumpWidget(
         MaterialApp(
@@ -58,10 +58,11 @@ void main() {
             boostPageRoute = BoostPageRoute<void>(
               settings: settings,
               builder: (BuildContext context) => Builder(
-                builder: (context) {
+                builder: (BuildContext context) {
                   return FloatingActionButton(
                     onPressed: () {
-                      boostPageRouteFindByOfMethod = BoostPageRoute.of<dynamic>(context);
+                      boostPageRouteFindByOfMethod =
+                          BoostPageRoute.of<dynamic>(context);
                     },
                   );
                 },
@@ -74,24 +75,26 @@ void main() {
 
       await tester.tap(find.byType(FloatingActionButton));
 
+      await tester.pump(const Duration(seconds: 1));
+
       // The route obtained from the ancestor node through the `of` method should be the same BoostPageRoute
       // as the originally created BoostPageRoute
       expect(boostPageRoute, boostPageRouteFindByOfMethod);
     });
 
     testWidgets(
-        'try to find BoostPageRoute through the `BoostPageRoute.of(context)` method, '
+        'try to find BoostPageRoute through the BoostPageRoute.of(context) method, '
         'but it doesn\'t exist, the method should throw an Exception',
         (WidgetTester tester) async {
-      dynamic contextCache;
+      BuildContext contextCache;
 
       await tester.pumpWidget(
         MaterialApp(
           onGenerateRoute: (RouteSettings settings) {
             return MaterialPageRoute<dynamic>(
               settings: settings,
-              builder: (context) => Builder(
-                builder: (context) => FloatingActionButton(
+              builder: (BuildContext context) => Builder(
+                builder: (BuildContext context) => FloatingActionButton(
                   onPressed: () {
                     contextCache = context;
                   },
@@ -102,15 +105,16 @@ void main() {
         ),
       );
       await tester.tap(find.byType(FloatingActionButton));
+      await tester.pump(const Duration(seconds: 1));
 
       expect(() => BoostPageRoute.of<dynamic>(contextCache), throwsException);
     });
 
     testWidgets(
-        'obtain BoostPageRoute through the `BoostPageRoute.tryOf(context)` method',
+        'obtain BoostPageRoute through the BoostPageRoute.tryOf(context) method',
         (WidgetTester tester) async {
-      dynamic boostPageRoute;
-      dynamic boostPageRouteFindByOfMethod;
+      BoostPageRoute<dynamic> boostPageRoute;
+      BoostPageRoute<dynamic> boostPageRouteFindByOfMethod;
 
       await tester.pumpWidget(
         MaterialApp(
@@ -118,7 +122,7 @@ void main() {
             boostPageRoute = BoostPageRoute<void>(
               settings: settings,
               builder: (BuildContext context) => Builder(
-                builder: (context) {
+                builder: (BuildContext context) {
                   return FloatingActionButton(
                     onPressed: () {
                       boostPageRouteFindByOfMethod =
@@ -134,6 +138,7 @@ void main() {
       );
 
       await tester.tap(find.byType(FloatingActionButton));
+      await tester.pump(const Duration(seconds: 1));
 
       // The route obtained from the ancestor node through the `tryOf` method should be the same BoostPageRoute
       // as the originally created BoostPageRoute
@@ -142,10 +147,10 @@ void main() {
   });
 
   testWidgets(
-      'try to find BoostPageRoute through the `BoostPageRoute.tryOf(context)` method, '
+      'try to find BoostPageRoute through the BoostPageRoute.tryOf(context) method, '
       'but it doesn\'t exist, the method should return null',
       (WidgetTester tester) async {
-        dynamic boostPageRouteFindByOfMethod;
+    BoostPageRoute<dynamic> boostPageRouteFindByOfMethod;
 
     await tester.pumpWidget(
       MaterialApp(
@@ -153,7 +158,7 @@ void main() {
           return MaterialPageRoute<dynamic>(
             settings: settings,
             builder: (BuildContext context) => Builder(
-              builder: (context) {
+              builder: (BuildContext context) {
                 return FloatingActionButton(
                   onPressed: () {
                     boostPageRouteFindByOfMethod =
@@ -168,6 +173,7 @@ void main() {
     );
 
     await tester.tap(find.byType(FloatingActionButton));
+    await tester.pump(const Duration(seconds: 1));
 
     expect(boostPageRouteFindByOfMethod, null);
   });

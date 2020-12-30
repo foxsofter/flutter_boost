@@ -53,10 +53,10 @@
         }else{
             [_engine runWithEntrypoint:nil];
         }
-        _dummy = [[FLBFlutterViewContainer alloc] initWithEngine:_engine
-                                                          nibName:nil
-                                                           bundle:nil];
-        _dummy.name = kIgnoreMessageWithName;
+//        _dummy = [[FLBFlutterViewContainer alloc] initWithEngine:_engine
+//                                                          nibName:nil
+//                                                           bundle:nil];
+//        _dummy.name = kIgnoreMessageWithName;
     }
     
     return self;
@@ -97,17 +97,19 @@
                          arguments:@{@"type":@"foreground"}];
 }
 
-- (void)atacheToViewController:(FlutterViewController *)vc
+- (BOOL)atacheToViewController:(FlutterViewController *)vc
 {
     if(_engine.viewController != vc){
-//        [(FLBFlutterViewContainer *)_engine.viewController surfaceUpdated:NO];
         _engine.viewController = vc;
+        return YES;
     }
+    return NO;
 }
 
 - (void)detach
 {
     if(_engine.viewController != _dummy){
+        [(FLBFlutterViewContainer *)_engine.viewController surfaceUpdated:NO];
         _engine.viewController = _dummy;
     }
 }
